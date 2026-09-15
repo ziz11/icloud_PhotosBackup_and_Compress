@@ -1,0 +1,13 @@
+.DS_Store
+
+# данные — большие, не для гита
+/originals/
+/compressed/
+/vidtest/
+/reports/
+
+# логи и отчёты прогонов
+*.log
+*.csv
+*.lst
+*.tsv
