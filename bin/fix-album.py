@@ -17,69 +17,22 @@
   fix-album.py 2024-02 --dry-run
 """
 import collections
-import json
 import os
 import subprocess
 import sys
-import time
+
+from photolib import DST, album_index, expected_name, restart_photos, selected
 
 CHUNK = int(os.environ.get('CHUNK', '8'))
 TIMEOUT = int(os.environ.get('TIMEOUT', '180'))
 RETRY = int(os.environ.get('RETRY', '3'))
 
-IMG = {'.heic', '.heif', '.jpg', '.jpeg', '.png'}
-VID = {'.mov', '.mp4', '.m4v'}
-
-
-def expected_name(fname):
-    stem, ext = os.path.splitext(fname)
-    e = ext.lower()
-    if e in IMG:
-        return stem + '.heic'
-    if e in VID:
-        return stem + '.mp4'
-    return fname
-
-
-def restart_photos():
-    subprocess.run(['pkill', '-f', 'osxphotos import'], capture_output=True)
-    time.sleep(1)
-    subprocess.run(['osascript', '-e', 'tell application "Photos" to quit'],
-                   capture_output=True)
-    time.sleep(4)
-    subprocess.run(['pkill', '-x', 'Photos'], capture_output=True)
-    time.sleep(3)
-    subprocess.run(['open', '-g', '-a', 'Photos'], capture_output=True)
-    time.sleep(20)
-
-
-def album_names(ym):
-    r = subprocess.run(['osxphotos', 'query', '--album', 'Recompressed', '--json'],
-                       capture_output=True, text=True)
-    data = json.loads(r.stdout)
-    c = collections.Counter()
-    for a in data:
-        if f'Recompressed/{ym}' in (a.get('albums') or []):
-            c[a.get('original_filename')] += 1
-    return c
-
 
 def disk_names(d):
     """{ожидаемое имя: [пути]} с учётом правил отбора."""
-    names = [f for f in os.listdir(d)
-             if not f.startswith('.') and not f.endswith('.xmp')]
-    stems = collections.defaultdict(set)
-    for f in names:
-        s, e = os.path.splitext(f)
-        stems[s].add(e.lower())
     out = collections.defaultdict(list)
-    for f in names:
-        stem, ext = os.path.splitext(f)
-        if ext.lower() in VID and (stems[stem] & IMG):
-            continue
-        if not stem.endswith('_edited') and f'{stem}_edited' in stems:
-            continue
-        out[expected_name(f)].append(os.path.join(d, f))
+    for p in selected(d):
+        out[expected_name(os.path.basename(p))].append(p)
     return out
 
 
@@ -91,22 +44,28 @@ def import_chunk(files, ym):
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         try:
             out, _ = p.communicate(timeout=TIMEOUT)
-            return out
+            if p.returncode == 0:
+                return out
+            print(f'    код {p.returncode} (попытка {attempt})', flush=True)
         except subprocess.TimeoutExpired:
             p.kill()
+            p.wait()
             print(f'    таймаут (попытка {attempt}) — перезапуск Photos', flush=True)
             restart_photos()
     return None
 
 
 def main():
-    ym = sys.argv[1]
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    if len(args) != 1:
+        sys.exit(__doc__)
+    ym = args[0]
     dry = '--dry-run' in sys.argv
-    d = os.path.expanduser(f'~/PhotosBackup/compressed/{ym}')
+    d = os.path.join(DST, ym)
     if not os.path.isdir(d):
         sys.exit(f'нет папки {d}')
 
-    have = album_names(ym)
+    have = album_index([ym])[ym]
     disk = disk_names(d)
 
     cand = []
@@ -134,7 +93,7 @@ def main():
             line = [l for l in out.splitlines() if l.startswith('Done:')]
             print(f'  чанк {n}/{total} — {line[-1] if line else "?"}', flush=True)
 
-    after = album_names(ym)
+    after = album_index([ym])[ym]
     print(f'[{ym}] в альбоме стало {sum(after.values())}')
 
 

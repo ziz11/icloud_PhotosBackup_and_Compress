@@ -7,13 +7,10 @@
 #   MIN_FREE_GB=2 run-batched.sh   свой порог
 #   PAUSE=30 run-batched.sh        пауза между месяцами, сек
 set -uo pipefail
-export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
+. "$(dirname "$0")/lib.sh"
 
-ROOT="$HOME/PhotosBackup"
 MIN_FREE_GB="${MIN_FREE_GB:-1}"
 PAUSE="${PAUSE:-10}"
-
-icloud_free_gb() { brctl quota 2>/dev/null | awk '{printf "%d", $1/1073741824}'; }
 
 while read -r ym; do
   [ -z "$ym" ] && continue
@@ -21,7 +18,9 @@ while read -r ym; do
   [ -f "$d/.import-complete" ] && { echo "[skip] $ym"; continue; }
 
   free=$(icloud_free_gb)
-  if [ "${free:-0}" -lt "$MIN_FREE_GB" ]; then
+  if [ -z "$free" ]; then
+    echo "   (квоту iCloud прочитать не удалось — проверку места пропускаю)"
+  elif [ "$free" -lt "$MIN_FREE_GB" ]; then
     echo "[STOP] в iCloud свободно ${free} GB (порог ${MIN_FREE_GB})."
     echo "       Удали старые объекты в Photos, очисти «Недавно удалённые»,"
     echo "       затем запусти этот скрипт снова — он продолжит с $ym."

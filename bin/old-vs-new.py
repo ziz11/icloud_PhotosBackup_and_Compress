@@ -3,37 +3,34 @@
 Сверка перед удалением: сколько в библиотеке СТАРЫХ и сколько НОВЫХ
 объектов по каждому месяцу.
 
-Новые  — те, что лежат в альбоме Recompressed (наши сжатые копии).
+Новые  — те, что лежат в альбоме Recompressed или Recompressed/<месяц>
+         (наши сжатые копии; ранние месяцы есть только в помесячном альбоме).
 Старые — все остальные, не считая общих альбомов iCloud (они квоту не едят).
 
 Числа из колонки СТАРЫХ должны совпасть с тем, что покажет умный альбом
-в Photos. Не совпало — не удалять, разбираться.
+в Photos. Не совпало — не удалять, разбираться. Типичная причина:
+объекты есть только в Recompressed/<месяц>, а умный альбом «не Recompressed»
+считает их старыми — такие месяцы сначала добить в плоский альбом
+(fix-album.py / import-robust.sh, они ставят оба альбома через --dup-albums).
 
   old-vs-new.py            все месяцы
+  old-vs-new.py 2021-07           один месяц
   old-vs-new.py 2021-07 2022-01   только диапазон
 """
-import json, subprocess, sys, collections
+import collections
+import sys
 
-lo = sys.argv[1] if len(sys.argv) > 2 else '0000-00'
-hi = sys.argv[2] if len(sys.argv) > 2 else '9999-99'
+from photolib import is_recompressed, query
 
-def q(*args):
-    r = subprocess.run(['osxphotos', 'query', '--json', *args],
-                       capture_output=True, text=True)
-    try:
-        return json.loads(r.stdout)
-    except Exception:
-        return []
-
-allp = q('--not-shared')
-new_uuid = {a['uuid'] for a in q('--album', 'Recompressed')}
+lo = sys.argv[1] if len(sys.argv) > 1 else '0000-00'
+hi = sys.argv[2] if len(sys.argv) > 2 else (lo if len(sys.argv) > 1 else '9999-99')
 
 old = collections.Counter(); new = collections.Counter()
-for a in allp:
+for a in query('--not-shared'):
     ym = (a.get('date') or '')[:7]
     if not ym or ym < lo or ym > hi:
         continue
-    (new if a['uuid'] in new_uuid else old).update([ym])
+    (new if is_recompressed(a.get('albums')) else old)[ym] += 1
 
 print(f"{'месяц':9} {'СТАРЫХ':>8} {'новых':>7} {'всего':>7}")
 to=tn=0

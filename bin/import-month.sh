@@ -22,7 +22,8 @@ find "$d" -type f ! -name '*.xmp' ! -name '.*' | sort > "/tmp/im-$ym.lst"
 total=$(wc -l < "/tmp/im-$ym.lst" | tr -d ' ')
 echo "[$ym] файлов: $total, чанк: $CHUNK"
 
-split -l "$CHUNK" "/tmp/im-$ym.lst" "/tmp/im-$ym-part-"
+rm -f "/tmp/im-$ym-part-"*        # обрывки прошлого прогона
+split -a 4 -l "$CHUNK" "/tmp/im-$ym.lst" "/tmp/im-$ym-part-"
 i=0; nparts=$(ls "/tmp/im-$ym-part-"* | wc -l | tr -d ' ')
 fails=0
 
@@ -33,7 +34,7 @@ for part in "/tmp/im-$ym-part-"*; do
     files=()
     while IFS= read -r line; do files+=("$line"); done < "$part"
     if osxphotos import "${files[@]}" \
-         --skip-dups --sidecar \
+         --skip-dups --dup-albums --sidecar \
          --album "Recompressed" --album "Recompressed/$ym" \
          >"/tmp/im-$ym-out.txt" 2>&1; then
       ok=1; break

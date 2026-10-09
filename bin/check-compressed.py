@@ -16,43 +16,16 @@
   check-compressed.py            все месяцы
   check-compressed.py 2026-08    один месяц
 """
-import os, sys, glob, collections
+import glob
+import os
+import sys
 
-ROOT = os.path.expanduser('~/PhotosBackup')
-SRC, DST = f'{ROOT}/originals', f'{ROOT}/compressed'
-IMG = {'.heic', '.heif', '.jpg', '.jpeg', '.png'}
-VID = {'.mov', '.mp4', '.m4v'}
-
-
-def selected(d):
-    out = []
-    for root, _, files in os.walk(d):
-        names = [f for f in files
-                 if not f.startswith('.') and not f.endswith('.xmp')]
-        stems = collections.defaultdict(set)
-        for f in names:
-            s, e = os.path.splitext(f)
-            stems[s].add(e.lower())
-        for f in names:
-            stem, ext = os.path.splitext(f)
-            if ext.lower() in VID and (stems[stem] & IMG):
-                continue
-            if not stem.endswith('_edited') and f'{stem}_edited' in stems:
-                continue
-            out.append(os.path.join(root, f))
-    return out
+from photolib import DST, SRC, expected_name, selected
 
 
 def candidates(rel):
     """Имена, под которыми результат может лежать в compressed."""
-    stem, ext = os.path.splitext(rel)
-    e = ext.lower()
-    names = [rel]
-    if e in IMG:
-        names.append(stem + '.heic')
-    elif e in VID:
-        names.append(stem + '.mp4')
-    return names
+    return {rel, os.path.join(os.path.dirname(rel), expected_name(os.path.basename(rel)))}
 
 
 def main():

@@ -4,7 +4,8 @@
 # Отличия от step1-export.sh:
 #   - игнорирует .export-complete, то есть работает по месяцам, которые
 #     уже помечены выгруженными;
-#   - исключает объекты из альбома Recompressed. Это сжатые копии,
+#   - исключает объекты из альбомов Recompressed и Recompressed/<месяц>
+#     (ранние месяцы есть только в помесячном). Это сжатые копии,
 #     залитые обратно шагом 3. Без фильтра они попали бы в originals
 #     и на следующем прогоне сжались бы второй раз.
 #
@@ -46,7 +47,7 @@ for ym in "$@"; do
   osxphotos export "$OUT/$ym" \
     --from-date "$from" --to-date "$to" \
     --update --not-shared --edited-suffix '_edited' \
-    --query-eval "'Recompressed' not in photo.albums" \
+    --query-eval "not any(a == 'Recompressed' or a.startswith('Recompressed/') for a in photo.albums)" \
     --sidecar XMP \
     --report "$ROOT/reports/$ym.csv" \
     --retry 3 || { echo "[FAIL] $ym — прерываю"; exit 1; }

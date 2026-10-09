@@ -10,37 +10,12 @@
 
 Вывод: /tmp/audit-gaps.tsv — месяц <TAB> ожидалось <TAB> есть <TAB> дыра
 """
-import os, re, sys, glob, hashlib, subprocess, collections
+import glob
+import os
+import re
+import subprocess
 
-ROOT = os.path.expanduser('~/PhotosBackup')
-IMG = {'.heic', '.heif', '.jpg', '.jpeg', '.png'}
-VID = {'.mov', '.mp4', '.m4v'}
-
-
-def md5(p):
-    h = hashlib.md5()
-    with open(p, 'rb') as f:
-        for b in iter(lambda: f.read(1 << 20), b''):
-            h.update(b)
-    return h.hexdigest()
-
-
-def selected(d):
-    out = []
-    for root, _, files in os.walk(d):
-        names = [f for f in files if not f.startswith('.') and not f.endswith('.xmp')]
-        stems = collections.defaultdict(set)
-        for f in names:
-            s, e = os.path.splitext(f)
-            stems[s].add(e.lower())
-        for f in names:
-            stem, ext = os.path.splitext(f)
-            if ext.lower() in VID and (stems[stem] & IMG):
-                continue
-            if not stem.endswith('_edited') and f'{stem}_edited' in stems:
-                continue
-            out.append(os.path.join(root, f))
-    return out
+from photolib import SRC, count_unique, selected
 
 
 def albums():
@@ -56,12 +31,12 @@ def albums():
 def main():
     got = albums()
     rows = []
-    for p in sorted(glob.glob(f'{ROOT}/originals/*/')):
+    for p in sorted(glob.glob(f'{SRC}/*/')):
         ym = os.path.basename(p.rstrip('/'))
         files = selected(p)
         if not files:
             continue
-        uniq = len({md5(f) for f in files})
+        uniq = count_unique(files)
         have = got.get(ym, 0)
         rows.append((ym, uniq, have, max(0, uniq - have)))
 
@@ -76,7 +51,7 @@ def main():
     print(f"ПОТЕРЯНО в обработанных: {sum(r[3] for r in gaps)} объектов")
     print(f"ещё не начато: {len(never)} месяцев, {sum(r[1] for r in never)} объектов")
     with open('/tmp/audit-gaps.tsv', 'w') as f:
-        f.write('\n'.join(f'{r[0]}\t{r[1]}\t{r[2]}\t{r[3]}' for r in gaps) + '\n')
+        f.write(''.join(f'{r[0]}\t{r[1]}\t{r[2]}\t{r[3]}\n' for r in gaps))
 
 
 if __name__ == '__main__':
