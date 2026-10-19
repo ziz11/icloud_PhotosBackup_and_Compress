@@ -30,6 +30,7 @@ for d in "$DST"/${FILTER}*/; do
     "$d"
     --walk
     --skip-dups
+    --dup-albums                  # дубль из прошлого прогона всё равно попадёт в альбомы
     --sidecar                     # XMP рядом: дата, GPS, ключевые слова, заголовок
     --album "Recompressed"        # плоский — всё новое
     --album "Recompressed/$ym"    # помесячный

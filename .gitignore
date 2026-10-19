@@ -11,3 +11,5 @@
 *.csv
 *.lst
 *.tsv
+
+__pycache__/
